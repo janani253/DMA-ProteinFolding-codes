@@ -562,8 +562,8 @@ class Measures():
                     rmsd1.extend(t)
 
         if flag=="clust":       
-            return np.mean(rmsd, axis=-1), np.mean(rmsd, axis=0)
-        elif flag=="matrix":            
+            return rmsd1 , rmsd
+        elif flag=="matrix":     
             return np.array(rmsd)
         else:
             self.rmsd.extend(rmsd1)
@@ -666,10 +666,11 @@ class Measures():
                 q1.extend(q)
                 q2.append(q)
                 
+                
         
-        if flag=="clust":       
-            return np.mean(q2, axis=-1), np.mean(q2, axis=0)
-        elif flag=="matrix":            
+        if flag=="clust":   
+            return q1, q2
+        elif flag=="matrix":    
             return np.array(q2)
         else:
             self.q.extend(q1)
@@ -708,7 +709,7 @@ class Measures():
 
     
     ######################################################################  
-    #calling dist functions
+    # Resetting class Measures
     def resetMeasures(self):
         Measures.q = []
         Measures.rmsd = []
@@ -718,6 +719,23 @@ class Measures():
         Measures.hpq = []
         Measures.nc = []
         Measures.order_param = []
+
+    ######################################################################   
+    
+    
+    ######################################################################  
+    # Resetting object measures to before NE state
+    def reset2b4NE(self, maxnc):
+                
+        #self.q = np.array(self.q)[np.array(self.nc)<=maxnc].tolist()
+        #self.rmsd = np.array(self.rmsd)[np.array(self.nc)<=maxnc].tolist()
+        self.dhd = np.array(self.dhd)[np.array(self.nc)<=maxnc].tolist()
+        #self.hisasaall = np.array(self.hisasaall)[np.array(self.nc)<=maxnc].tolist()
+        #self.hisasahp = np.array(self.hisasahp)[np.array(self.nc)<=maxnc].tolist()
+        #self.hpq = np.array(self.hpq)[np.array(self.nc)<=maxnc].tolist()
+        Measures.order_param = np.array(Measures.order_param)[np.array(self.nc)<=maxnc].tolist()
+        self.nc = np.array(self.nc)[np.array(self.nc)<=maxnc].tolist()
+        
 
     ######################################################################   
  
@@ -751,9 +769,11 @@ class Measures():
             traj1 = np.unique(traj1)
             start = np.searchsorted(self.nc, traj1, side="left")
             end = np.searchsorted(self.nc, traj1, side="right")
+
             x = []         
             for i in range(len(traj1)): 
-                x.extend(range(start[i],end[i]))               
+                x.extend(range(start[i],end[i]))  
+
             self.q = np.array(self.q)[x]
             self.rmsd = np.array(self.rmsd)[x]
             self.dhd = np.array(self.dhd)[x]
@@ -762,7 +782,7 @@ class Measures():
             self.hpq = np.array(self.hpq)[x]
             self.nc = np.array(self.nc)[x]
             
-            self.nc = np.insert(self.nc, 0, [0]*len(self.qm))
+            self.nc = np.insert(self.nc, 0, [0]*len(self.dhdm))
             self.q = np.insert(self.q, 0, self.qm)
             self.rmsd = np.insert(self.rmsd, 0, self.rmsdm)
             self.dhd = np.insert(self.dhd, 0, self.dhdm)
@@ -771,11 +791,12 @@ class Measures():
             self.hpq = np.insert(self.hpq, 0, self.hpqm)
             
         else:
-            self.DEShawQ(traj1)            
-            self.RMSD(traj1)          
+            #self.DEShawQ(traj1)            
+            #self.RMSD(traj1)          
             self.dihedDist(traj1)
-            self.hpContacts(traj1)
-            self.HISASA()            
+            #self.hpContacts(traj1)
+            #self.HISASA()  
+            pass          
             
 
         if flag in ["NE", "mean", "collate", "backup", "restart"]:

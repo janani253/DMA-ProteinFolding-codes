@@ -146,11 +146,11 @@ class DMAPs():
             r = (r**2) * Measures.wts
             r = r.sum(axis=-1)/np.sum(Measures.wts)
             r = np.sqrt(r)   
-            
+            self.d1.extend(r)           
             a.append(r.transpose().tolist())                 
                                 
         if flag=="clust": 
-            return np.mean(a, axis=-1), np.mean(a, axis=0)
+            return a #np.mean(a, axis=-1), np.mean(a, axis=0)
         else:
             return np.array(a)
     ######################################################################
@@ -162,11 +162,15 @@ class DMAPs():
         #global eps
         a = [] 
         ec = []
+        d = copy.deepcopy(self.d)   
+        #self.d1 = copy.deepcopy(self.d)
+        #for i in range(self.d1.shape[0]):
+        #    self.d1[i,i] = 0    
 
-        for e1 in range(-10,5,1):            
+        for e1 in range(-5,5,1):            
             for e2 in range(1,10,1):
                 self.data.eps = e2*(10**e1)
-                c = self.data.kernel(self.d)
+                c = self.data.kernel(np.array(self.d1))
                 c = c.sum()
                 a.append(np.log(c))
                 ec.append(np.log(self.data.eps))
@@ -190,12 +194,9 @@ class DMAPs():
     #calculating distances for simple trajectories
     def calcDMatSimple(self, traj1, n1=1, n2=False, fn="t", fx="RMSD", verbose=True, returnDMat=False):
                     
-        if self.data.op_name in ["RMSD","rmsd","cd","CD"]:
-            try:
-                d = self.data.dist_fun(traj1.traj, flag="matrix").transpose()            
-                self.d = np.insert(self.d, self.d.shape[0], d, axis=0)
-            except:                
-                self.d = self.data.dist_fun(traj1.traj, flag="matrix")    
+        if self.data.op_name in ["RMSD","rmsd","cd","CD"]:                          
+            d = self.data.dist_fun(traj1.traj, flag="matrix").transpose()
+            self.d1 = copy.deepcopy(d)
                             
         else:
             if isinstance(n1,int):
@@ -216,26 +217,22 @@ class DMAPs():
                     else: 
                         d1 = self.getDMat(n1=j, n2=i)
                         d = np.concatenate((d,d1), axis=-1)
-
-                try:
-                    self.d = np.concatenate((self.d,d), axis=0)
-                except:
-                    self.d = copy.deepcopy(d)
-                    
-        # make symmetric            
+                      
+        """            
+        # make symmetric   
         for i in range(self.d.shape[0]):
-            for j in range(i,self.d.shape[1]): 
+            for j in range(i,self.d.shape[1]):             
                  if self.d[i,j]!=self.d[j,i]:                        
                      self.d[i,j] = (self.d[i,j]+self.d[j,i])/2
                      self.d[j,i] = self.d[i,j]     
-                                                                 
+        """                                                         
         if verbose:
-            print("No. of samples: "+str(len(self.d)))
+            print("No. of samples: "+str(len(d)))
             
-        if returnDMat:
-            for i in range(self.d.shape[0]):           
-                self.d[i,i] = sorted(self.d[i])[1] **2 
-            return self.d
+
+        #for i in range(d.shape[0]):           
+        #    d[i,i] = sorted(d[i])[1] **2                 
+        return d
     ######################################################################    
     
     
@@ -246,8 +243,8 @@ class DMAPs():
         if verbose: 
             print("Calculating A @ "+str(time.process_time()))
         
-        self.d = np.array([])
-        self.calcDMatSimple(traj1, n1=n1, n2=False, fn=fn, fx=fx, verbose=verbose) 
+        self.d1 = [] 
+        self.d = self.calcDMatSimple(traj1, n1=n1, n2=False, fn=fn, fx=fx, verbose=verbose) 
                 
         
         if wFlag:
@@ -278,14 +275,10 @@ class DMAPs():
         self.eVal, eVec = self.calcEV(self.P)
         self.eVec = eVec.transpose()
         if verbose:
-            print("eVeco shape: "+str(self.eVec.shape))
-        
-        #if wFlag:
-        #    print2file(fn,fx+'.DMAP',self.eVec,fflag='full',writeflag='w')
+            print("eVeco shape: "+str(self.eVec.shape))               
         
         self.trajo = traj1
         
-        self.a = np.delete(self.a, np.s_[::])
         ai = np.delete(ai, np.s_[::])
         aj = np.delete(aj, np.s_[::])  
         del traj1
@@ -305,90 +298,107 @@ class DMAPs():
             print("Calculating An @ "+str(time.process_time()))
         
             
-        self.calcDMatSimple(traj1, n1=n1, n2=n2, fn=fn, fx=fx, verbose=verbose) 
-            
+        d = self.calcDMatSimple(traj1, n1=n1, n2=n2, fn=fn, fx=fx, verbose=verbose) 
+        a = self.data.kernel(d)  
+        self.a = np.concatenate((self.a,a), axis=0)
+        #self.a = np.insert(self.a, self.a.shape[0], a, axis=0).transpose()
         
         if wFlag:
-            print2file(fn, fx, self.d, fflag='full', writeflag='w')
+            print2file(fn, fx, d, fflag='full', writeflag='w')
         
-        self.d = self.d.transpose()
-        self.a = self.data.kernel(self.d)
-        
+              
         ai = self.calcAi(self.a)
         aj = self.calcAi(self.a.transpose())
 
         if verbose:
             print("Calculating Pn @ "+str(time.process_time()))
-        #self.Pn = self.calcP(self.a, ai, aj, flag=flag).transpose()
-        Pn = self.calcP(self.a, ai, aj, flag=flag).transpose()
-        #print(Pn.shape)
-        #Pn = np.concatenate((self.P, Pn), axis=0)#.transpose()
+        Pn = self.calcP(self.a, ai, aj, flag=flag) #.transpose()
+
         
         if verbose:
             print("Calculating eVecn using Nystrom Extension @ "+str(time.process_time()))
         eVec = self.nystromE(Pn, self.eVec.transpose(), self.eVal)
-        self.eVec = eVec.transpose()
+        eVec = eVec.transpose()
         if verbose:
-            print("eVecn shape: "+str(self.eVec.shape))
-        #if wFlag:
-        #    print2file(fn,fx+'.NE.DMAP',self.eVec[:,self.eVal.shape[0]:],fflag='full',writeflag='w')
-
+            print("eVecn shape: "+str(eVec.shape))
+               
         
-        #d = np.delete(d, np.s_[::])
-        self.d = np.delete(self.d, np.s_[::])
-        self.a = np.delete(self.a, np.s_[::])
+        self.a = self.a[:self.a.shape[1]]
+
         ai = np.delete(ai, np.s_[::])
         aj = np.delete(aj, np.s_[::])
         Pn = np.delete(Pn, np.s_[::])  
         del traj1
+        self.n1 = 0
+        self.n2 = 0
                
-        return self.eVec
+        return eVec
     ######################################################################  
     
     
     ######################################################################  
     #calling DMAP functions for clusters/CG trajectories
-    def callCG(self, native_fn, digfmt1, dist_fun="RMSD", nclusts=20, fn="t", fx="RMSD", stride=1, wFlag=False, verbose=True):
+    def callCG(self, native_fn, ifNameFormat, dist_fun="RMSD", nclusts=20, fn="t", fx="RMSD", stride=1, wFlag=False, verbose=True):
                
         M = Measures(self.data, "")
         M.resetMeasures()
         M.assignFuncs(dist_fun = dist_fun, kernel = M.gaussianKernel)
                            
         self.d = []
+        self.d1 = []
+        self.a = []
+        self.a1 = []
+
         if verbose:
             print("Calculating A @ "+str(time.process_time()))
             print("Processing Clusters")
         for i in range(nclusts):
             d = []
+            a = []
+            a1 = []
             for j in range(nclusts):
                 d.append(0)
+                a.append(0)
+                a1.append(0)
             self.d.append(d)
+            self.a.append(a) 
+            self.a1.append(a1)           
         
         self.dext = []
+        self.a2 = []
+        
+        fns = os.popen("ls "+ifNameFormat).read().split("\n")
+        n = len(fns)
+        trj_fn = []
+        for i in range(n):
+            if len(fns[i].strip())==0:
+                continue       
+            trj_fn.append(fns[i].strip())
 
         if self.data.op_name in ["RMSD","rmsd"]:
         
             for i in range(nclusts):
-                clust_fn = digfmt1.format(i)+".dcd"
+                clust_fn = trj_fn[i] #digfmt1.format(i)+".dcd"
                 clust1 = Traj(clust_fn, native_fn, stride=stride)
           
                 M.traj = clust1     
                 M.call(self.data.native, flag="calc")
              
                 if verbose:
-                    print("Cluster # :"+str(i)+"\tQ shape:"+str(len(M.q))+"\tCluster size:"+str(clust1.nl))
+                    print("Cluster # :"+str(i)+"\tQ shape:"+str(len(M.q))+"\tCluster size:"+str(clust1.nl), end='\r')
                                 
                 for j in range(i,nclusts):               
                     clust_fn = digfmt1.format(j)+".dcd"
                     clust2 = Traj(clust_fn, native_fn, stride=stride)
                     d = M.RMSD(clust2.traj, flag="clust")              
+                    self.d1.extend(d[0])
+                    self.d[i][j] = copy.deepcopy(d[1])
+                    self.d[j][i] = copy.deepcopy(d[1])
                     
-                    self.d[i][j] = d[0]
-                    self.d[j][i] = d[1]
                 
         else:  
             for i in range(nclusts):
-                clust_fn = digfmt1.format(i)+".dcd"
+                clust_fn = trj_fn[i] #clust_fn = digfmt1.format(i)+".dcd"
                 clust1 = Traj(clust_fn, native_fn, stride=stride)
                 if verbose:
                     print("Cluster # :"+str(i)+"\tQ shape:"+str(len(M.q))+"\tCluster size:"+str(clust1.nl), end='\r')
@@ -403,34 +413,39 @@ class DMAPs():
                 for j in range(i,nclusts):  
                                                
                     d = self.getDMat(i+1, j+1, flag="clust")                     
-
-                    self.d[i][j] = d[0]
-                    self.d[j][i] = d[1]
-
+                    self.d[i][j] = copy.deepcopy(d)
+                    self.d[j][i] = copy.deepcopy(d)
+                            
         
-        for i in range(nclusts):            
-            d = np.concatenate((np.array(self.d[i])), axis=0)  
-            self.dext.append(np.array(d))
-        self.dext = np.array(self.dext) 
-        
-
-        for i in range(nclusts):
-            for j in range(nclusts):               
-                self.d[i][j] = self.d[i][j].mean()
-               
-        self.d = np.array(self.d)   
 
         if wFlag:
             print2file(fn+"-clust",fx,self.d,fflag='full',writeflag='w')
             
-        #self.data.eps = self.data.eps*2
-        self.data.eps = self.toCalcEpsilon()
+        self.data.eps = self.toCalcEpsilon() 
+
         if verbose:
             print("Epsilon : "+str(self.data.eps))
-        self.a = self.data.kernel(np.array(self.d))
+
+        for i in range(nclusts):
+            for j in range(i,nclusts):   
+                a = self.data.kernel(np.array(self.d[i][j]))
+                
+                self.a[i][j] = np.mean(a) 
+                self.a[j][i] = np.mean(a) 
+                
+                self.a1[i][j] = np.mean(a,axis=-1)
+                self.a1[j][i] = np.mean(a,axis=0)
+                
+        for i in range(nclusts):            
+            a = np.concatenate((np.array(self.a1[i])), axis=0)  
+            self.a2.append(np.array(a))
+        self.a2 = np.array(self.a2) 
+        self.a = np.array(self.a)
+
+
         ai = self.calcAi(self.a)
         aj = self.calcAi(self.a.transpose())
-
+                
         if verbose:
             print("Calculating Po @ "+str(time.process_time()))
         self.P = self.calcP(self.a, ai, aj, flag=flag)
@@ -443,12 +458,9 @@ class DMAPs():
         if verbose:
             print("Calculated eVeco @ "+str(time.process_time()))
             print("eVeco shape: "+str(self.eVec.shape))        
-        
-        #if wFlag:
-        #    print2file(fn+"-clust",fx+'.DMAP',self.eVec,fflag='full',writeflag='w')
+               
         
         d = np.delete(d, np.s_[::])
-        self.a = np.delete(self.a, np.s_[::])
         ai = np.delete(ai, np.s_[::])
         aj = np.delete(aj, np.s_[::])  
 
@@ -462,47 +474,40 @@ class DMAPs():
     def callCGNE(self, native_fn, digfmt1, M, nclusts=[1], fn="t", fx="RMSD", stride=1, wFlag=False, verbose=True):
                 
         #M = Measures(self.data, "")
-        
+
         flag = 'calc'
         if verbose:
             print("Calculating An @ "+str(time.process_time()))
-        
+
         if isinstance(nclusts,int):
             nclusts = [nclusts]
         nclusts = np.unique(nclusts)
-        
         M.call(nclusts, flag="NE")                
         
         extstruct = []
         for i in nclusts:
-            extstruct.extend(np.where([M.nc==i])[0])
-        self.dext = self.dext[:,extstruct]
-        
-        self.d = np.insert(self.d, self.d.shape[0], self.dext.transpose(), axis=-1)
-        if wFlag:
-            print2file(fn+"-ext",fx,self.dext.transpose(),fflag='full',writeflag='w')
+            extstruct.extend(np.where([M.nc==i])[1]-len(nclusts))
 
-        self.a = self.data.kernel(self.d)
+        self.a2 = self.a2[:,extstruct]
+       
+        
+        self.a = np.insert(self.a, self.a.shape[0], self.a2.transpose(), axis=-1)
+
         ai = self.calcAi(self.a)
         aj = self.calcAi(self.a.transpose())
  
         if verbose:
             print("Calculating Pn @ "+str(time.process_time()))
-        Pn = self.calcP(self.a, ai, aj, flag=flag).transpose()
-        #print(Pn.shape)
-        #Pn = np.concatenate((self.P, Pn), axis=0)
-        #self.P = self.P.transpose()
+        Pn = self.calcP(self.a, ai, aj, flag=flag).transpose()      
         
         if verbose:
             print("Calculating eVecn using Nystrom Extension @ "+str(time.process_time()))
         eVec = self.nystromE(Pn, self.eVec.transpose(), self.eVal)
-        self.eVec = eVec.transpose() 
+        eVec = eVec.transpose() 
         if verbose:
             print("Calculated eVecn using Nystrom Extension @ "+str(time.process_time()))
-            print("eVecn shape: "+str(self.eVec.shape))
-        
-        #if wFlag:
-        #    print2file(fn,fx+'.NE.DMAP',self.eVec[:,self.eVal.shape[0]:],fflag='full',writeflag='w')
+            print("eVecn shape: "+str(eVec.shape))
+                
 
         self.dext = np.delete(self.dext, np.s_[::])
         self.d = np.delete(self.d, np.s_[::])
@@ -510,9 +515,8 @@ class DMAPs():
         ai = np.delete(ai, np.s_[::])
         aj = np.delete(aj, np.s_[::])
         Pn = np.delete(Pn, np.s_[::])    
-        #del self.trajo
         
-        return self.eVec, M
+        return eVec, M
                 
     ######################################################################  
 
@@ -525,11 +529,12 @@ class DMAPs():
         all_pts = []
         sel_pts1 = []
         
+        """
         if self.eVec.shape[0]!=self.eVec.shape[-1]:        
-            DMap = DMap[:,m:]
-            c = c[m:]
+            #DMap = DMap[:,m:]
+            #c = c[m:]
             NEFlag = True
-                
+        """        
         
         if n<2 and c:
             for i in range(n):
@@ -616,7 +621,7 @@ class DMAPs():
         
         d = [sorted_eVal[i]-sorted_eVal[i+1] for i in range(1,6)]
         n = np.where(d==max(d))[0][0]+1
-        n = 2
+        n = 3
         print("Dimention of DMAP: "+str(n))
 
         
@@ -865,11 +870,11 @@ def alphaShape2(e1,e2,c, plotFlag = False):
 
     DfromC = np.sqrt( (np.array(e1)[edges1]-e1cmin)**2 + (np.array(e2)[edges1]-e2cmin)**2 )
     DfromKDE = np.sqrt( (np.array(e1)[edges1]-e1kdemax)**2 + (np.array(e2)[edges1]-e2kdemax)**2 )
-    lim1 = sorted(DfromC)[n//3]
+    lim1 = sorted(DfromC)[n//2]
     
     lim2 = sorted(DfromKDE)[n//2]
     for i in range(len(edges1)):
-        if DfromC[i]<lim1: #DfromKDE[i]<lim2 
+        if DfromC[i]<lim1: #DfromKDE[i]<lim2: #
             sel_edges.append(edges1[i])
     
     
