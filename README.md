@@ -11,6 +11,7 @@ File : 2-DMAP.ipynb
 This code (excuable in Jupyter notebook) was used to 
 1. calculate the diffusion maps generated in this study.
 2. select conformations to serve as starting points for subsequent rounds of Particle swarm evolution based on the diffusion maps calculated, and the ansatz.
+
 Description of eac cell/panel within the notebook
 1. The first cell in this Jupyter notebook was used to define the protein ID, the distance metric used and import necessary packages
 2. The 2nd cell (method simpleTrajDMap) may be used to perform DMA from small trajectories (<2000 frames), (nystrom extension may be performed on the same)
