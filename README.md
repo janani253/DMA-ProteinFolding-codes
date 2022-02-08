@@ -14,6 +14,6 @@ This code (excuable in Jupyter notebook) was used to
 Description of eac cell/panel within the notebook
 1. The first cell in this Jupyter notebook was used to define the protein ID, the distance metric used and import necessary packages
 2. The 2nd cell (method simpleTrajDMap) may be used to perform DMA from small trajectories (<2000 frames), (nystrom extension may be performed on the same)
-3. the 3rd cell (method CGTrajDMap) may be used to perform DMA from coarse-grained representatives.
+3. The 3rd cell (method CGTrajDMap) may be used to perform DMA from coarse-grained representatives.
 4. The final cell (method compareTrajDMap) in this Jupyter notebook was used to Compare diffusion maps between trajectories and reports their correlation coefficient.
 This Jupyter notebook uses _2_dm_class.py to perform DMA and also uses Basic.py to calculate distance metrices.
